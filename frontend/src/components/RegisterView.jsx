@@ -1,65 +1,135 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import * as Icons from "lucide-react";
 import { toast } from "sonner";
 import api from "../lib/api";
 import { REGISTERS } from "../registers";
 
+const isDropdown = (t) => t === "select" || t === "dropdown";
+const isUpload = (t) => t === "image" || t === "file" || t === "signature";
+
+async function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
 function FormField({ field, value, onChange, students, courses }) {
   const base = "w-full h-10 px-3 bg-background border border-input focus:border-primary focus:outline-none text-sm";
-  if (field.type === "textarea")
+  const ty = field.type;
+  if (ty === "textarea" || ty === "longtext")
     return <textarea data-testid={`field-${field.name}`} value={value || ""} onChange={(e) => onChange(e.target.value)} className={base + " h-20 py-2"} />;
-  if (field.type === "select")
+  if (isDropdown(ty))
     return (
       <select data-testid={`field-${field.name}`} value={value || ""} onChange={(e) => onChange(e.target.value)} className={base}>
         <option value="">—</option>
-        {field.options.map((o) => <option key={o} value={o}>{o}</option>)}
+        {(field.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
       </select>
     );
-  if (field.type === "student")
+  if (ty === "yesno")
+    return (
+      <select data-testid={`field-${field.name}`} value={value || ""} onChange={(e) => onChange(e.target.value)} className={base}>
+        <option value="">—</option><option value="Yes">Yes</option><option value="No">No</option>
+      </select>
+    );
+  if (ty === "checkbox")
+    return (
+      <label className="flex items-center gap-2 h-10 text-sm">
+        <input type="checkbox" data-testid={`field-${field.name}`} checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+        <span className="text-muted-foreground">{value ? "Yes" : "No"}</span>
+      </label>
+    );
+  if (ty === "student")
     return (
       <select data-testid={`field-${field.name}`} value={value || ""} onChange={(e) => onChange(e.target.value)} className={base}>
         <option value="">Select student</option>
         {students.map((s) => <option key={s.student_id} value={s.student_id}>{s.student_id} — {s.name}</option>)}
       </select>
     );
-  if (field.type === "course")
+  if (ty === "course")
     return (
       <select data-testid={`field-${field.name}`} value={value || ""} onChange={(e) => onChange(e.target.value)} className={base}>
         <option value="">Select course</option>
         {courses.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
       </select>
     );
+  if (isUpload(ty))
+    return (
+      <div className="space-y-2">
+        {value && (ty === "file"
+          ? <a href={value} download className="text-sm text-primary underline" data-testid={`file-${field.name}`}>Download current file</a>
+          : <img src={value} alt="" className="h-16 w-16 object-cover border border-border" />)}
+        <input type="file" data-testid={`field-${field.name}`}
+          accept={ty === "file" ? undefined : "image/*"}
+          onChange={async (e) => {
+            const f = e.target.files?.[0]; if (!f) return;
+            if (f.size > 2 * 1024 * 1024) return toast.error("Max file size is 2MB");
+            onChange(await fileToDataUrl(f));
+          }} className="text-sm" />
+      </div>
+    );
+  const inputType = ty === "number" || ty === "currency" ? "number"
+    : ty === "date" ? "date" : ty === "time" ? "time"
+    : ty === "email" ? "email" : ty === "phone" ? "tel" : "text";
   return (
-    <input data-testid={`field-${field.name}`} type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
-      value={value || ""} disabled={field.auto} placeholder={field.hint || ""}
-      onChange={(e) => onChange(e.target.value)} className={base + (field.auto ? " bg-muted text-muted-foreground" : "")} />
+    <div className="relative">
+      {ty === "currency" && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>}
+      <input data-testid={`field-${field.name}`} type={inputType}
+        value={value || ""} disabled={field.auto} placeholder={field.hint || ""}
+        onChange={(e) => onChange(e.target.value)}
+        className={base + (ty === "currency" ? " pl-7" : "") + (field.auto ? " bg-muted text-muted-foreground" : "")} />
+    </div>
   );
+}
+
+function Cell({ field, value }) {
+  if (value === undefined || value === null || value === "") return <span>—</span>;
+  const ty = field.type;
+  if (isUpload(ty)) {
+    return ty === "file"
+      ? <a href={value} download className="text-primary underline">file</a>
+      : <img src={value} alt="" className="h-8 w-8 object-cover border border-border" />;
+  }
+  if (ty === "checkbox") return <span>{value ? "✓" : "—"}</span>;
+  if (ty === "currency") return <span className="tabular">₹{value}</span>;
+  if (isDropdown(ty) || ty === "yesno")
+    return <span className="inline-block px-2 py-0.5 text-[11px] uppercase tracking-wide border border-border bg-muted">{String(value)}</span>;
+  return <span>{String(value)}</span>;
 }
 
 export default function RegisterView() {
   const { key } = useParams();
+  const navigate = useNavigate();
   const cfg = REGISTERS[key];
+  const [schemaFields, setSchemaFields] = useState(null);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [q, setQ] = useState("");
   const [sort, setSort] = useState({ col: null, dir: 1 });
   const [page, setPage] = useState(0);
-  const [panel, setPanel] = useState(null); // {mode, data}
-  const [audit, setAudit] = useState(null); // array or null
+  const [panel, setPanel] = useState(null);
+  const [audit, setAudit] = useState(null);
   const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
-  const dateField = cfg.fields.find((f) => f.type === "date")?.name;
-  const cols = cfg.fields;
+  const fields = schemaFields || cfg.fields;
+  const cols = fields.filter((f) => !f.hidden && !f.archived);
+  const dateField = cols.find((f) => f.type === "date")?.name;
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await api.get(`/registers/${key}`);
-      setRows(res.data);
+      const [r, s] = await Promise.all([
+        api.get(`/registers/${key}`),
+        api.get(`/registers/${key}/schema`),
+      ]);
+      setRows(r.data);
+      setSchemaFields(s.data.fields || cfg.fields);
     } catch { toast.error("Failed to load"); }
     setLoading(false);
   };
@@ -85,7 +155,7 @@ export default function RegisterView() {
 
   const openAdd = () => {
     const data = {};
-    cfg.fields.forEach((f) => { if (f.default) data[f.name] = f.default; });
+    cols.forEach((f) => { if (f.default) data[f.name] = f.default; });
     setPanel({ mode: "add", data });
   };
   const openEdit = (row) => setPanel({ mode: "edit", data: { ...row } });
@@ -96,9 +166,9 @@ export default function RegisterView() {
       if (f.type === "student") {
         const s = students.find((x) => x.student_id === v);
         if (s) {
-          if (cfg.fields.some((ff) => ff.name === "student_name")) data.student_name = s.name;
-          if (cfg.fields.some((ff) => ff.name === "course")) data.course = s.course;
-          if (cfg.fields.some((ff) => ff.name === "batch_id")) data.batch_id = s.batch_id;
+          if (fields.some((ff) => ff.name === "student_name")) data.student_name = s.name;
+          if (fields.some((ff) => ff.name === "course")) data.course = s.course;
+          if (fields.some((ff) => ff.name === "batch_id")) data.batch_id = s.batch_id;
         }
       }
       return { ...p, data };
@@ -107,7 +177,7 @@ export default function RegisterView() {
 
   const save = async () => {
     const dd = panel.data;
-    for (const f of cfg.fields) if (f.required && !dd[f.name]) return toast.error(`${f.label} is required`);
+    for (const f of cols) if (f.required && !dd[f.name] && f.type !== "checkbox") return toast.error(`${f.label} is required`);
     try {
       if (panel.mode === "add") await api.post(`/registers/${key}`, dd);
       else await api.put(`/registers/${key}/${dd.id}`, dd);
@@ -136,30 +206,23 @@ export default function RegisterView() {
     const w = window.open("", "_blank");
     if (!w) return toast.error("Allow pop-ups to print/PDF");
     const head = ["#", ...cols.map((c) => c.label)];
-    const body = filtered.map((r, i) => [i + 1, ...cols.map((c) => r[c.name] ?? "")]);
+    const body = filtered.map((r, i) => [i + 1, ...cols.map((c) => (isUpload(c.type) ? (r[c.name] ? "[attached]" : "") : r[c.name] ?? ""))]);
     w.document.write(`<html><head><title>${cfg.label} — BIFD</title>
-      <style>
-        body{font-family:Arial,sans-serif;padding:24px;color:#111}
-        h1{font-size:20px;margin:0} .sub{color:#666;font-size:12px;margin:4px 0 16px}
-        table{width:100%;border-collapse:collapse;font-size:11px}
-        th,td{border:1px solid #ccc;padding:5px 7px;text-align:left}
-        th{background:#f2f2f2;text-transform:uppercase;font-size:10px;letter-spacing:.05em}
-        tr:nth-child(even){background:#fafafa}
-      </style></head><body>
+      <style>body{font-family:Arial,sans-serif;padding:24px;color:#111}h1{font-size:20px;margin:0}
+      .sub{color:#666;font-size:12px;margin:4px 0 16px}table{width:100%;border-collapse:collapse;font-size:11px}
+      th,td{border:1px solid #ccc;padding:5px 7px;text-align:left}th{background:#f2f2f2;text-transform:uppercase;font-size:10px}
+      tr:nth-child(even){background:#fafafa}</style></head><body>
       <h1>${cfg.label}</h1>
-      <div class="sub">Bhuvan Institute of Fashion Design · ${filtered.length} records · Generated ${new Date().toLocaleString()}</div>
+      <div class="sub">Bhuvan Institute of Fashion Design · ${filtered.length} records · ${new Date().toLocaleString()}</div>
       <table><thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
-      <tbody>${body.map((row) => `<tr>${row.map((c) => `<td>${String(c)}</td>`).join("")}</tr>`).join("")}</tbody></table>
-      </body></html>`);
+      <tbody>${body.map((row) => `<tr>${row.map((c) => `<td>${String(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></body></html>`);
     w.document.close();
     setTimeout(() => { w.focus(); w.print(); }, 300);
   };
 
   const openAudit = async () => {
-    try {
-      const res = await api.get(`/registers/${key}/audit`);
-      setAudit(res.data);
-    } catch { toast.error("Could not load audit log"); }
+    try { const res = await api.get(`/registers/${key}/audit`); setAudit(res.data); }
+    catch { toast.error("Could not load audit log"); }
   };
 
   const Btn = ({ onClick, icon, label, testid, primary }) => (
@@ -178,6 +241,7 @@ export default function RegisterView() {
           <p className="text-sm text-muted-foreground mt-1">{filtered.length} records{cfg.subtitle ? ` · ${cfg.subtitle}` : ""}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Btn testid="settings-btn" onClick={() => navigate(`/r/${key}/settings`)} icon="Settings" label="Register Settings" />
           <Btn testid="audit-btn" onClick={openAudit} icon="ScrollText" label="Audit Log" />
           <Btn testid="excel-btn" onClick={() => download("xlsx")} icon="Sheet" label="Excel" />
           <Btn testid="pdf-btn" onClick={printOut} icon="FileText" label="PDF" />
@@ -224,10 +288,8 @@ export default function RegisterView() {
               <tr key={row.id} data-testid={`row-${row.id}`} className="border-b border-border/60 hover:bg-primary/[0.03]">
                 <td className="px-4 py-3 tabular text-muted-foreground">{page * 25 + i + 1}</td>
                 {cols.map((f) => (
-                  <td key={f.name} className={`px-4 py-3 whitespace-nowrap ${f.type === "number" ? "text-right tabular" : ""}`}>
-                    {f.type === "select" && row[f.name] ? (
-                      <span className="inline-block px-2 py-0.5 text-[11px] uppercase tracking-wide border border-border bg-muted">{row[f.name]}</span>
-                    ) : (row[f.name] ?? "—")}
+                  <td key={f.name} className={`px-4 py-3 whitespace-nowrap ${f.type === "number" || f.type === "currency" ? "text-right tabular" : ""}`}>
+                    <Cell field={f} value={row[f.name]} />
                   </td>
                 ))}
                 <td className="px-4 py-3 text-right whitespace-nowrap">
@@ -259,7 +321,7 @@ export default function RegisterView() {
               <button onClick={() => setPanel(null)} data-testid="close-panel"><Icons.X className="w-5 h-5" /></button>
             </div>
             <div className="p-6 space-y-4">
-              {cfg.fields.map((f) => (
+              {cols.map((f) => (
                 <div key={f.name}>
                   <label className="block text-[10px] uppercase tracking-[0.15em] text-muted-foreground mb-1.5">
                     {f.label}{f.required && <span className="text-primary"> *</span>}

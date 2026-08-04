@@ -64,6 +64,21 @@ def with_running_balance(rows):
         r["balance"] = round(bal, 2)
     return rows
 
+async def resolve_columns(name, rows):
+    # Use a saved custom schema (visible, ordered, relabelled) if present; else raw doc keys.
+    schema = await db.register_schemas.find_one({"name": name}, {"_id": 0})
+    if schema and schema.get("fields"):
+        vis = [f for f in schema["fields"] if not f.get("hidden") and not f.get("archived")]
+        keys = [f["name"] for f in vis]
+        headers = [f.get("label", f["name"]) for f in vis]
+        return keys, headers
+    keys = []
+    for r in rows:
+        for k in r.keys():
+            if k not in keys:
+                keys.append(k)
+    return keys, keys
+
 # ---------------- AUTH ----------------
 async def get_current_user(request: Request):
     token = request.cookies.get("session_token")
@@ -255,6 +270,40 @@ async def create_register(name: str, request: Request, user=Depends(require_admi
     await audit(user, "create", name, data["id"])
     return clean(data)
 
+@api.get("/registers/{name}/schema")
+async def get_schema(name: str, user=Depends(require_admin)):
+    check_register(name)
+    doc = await db.register_schemas.find_one({"name": name}, {"_id": 0})
+    return {"name": name, "fields": doc["fields"] if doc else None}
+
+@api.put("/registers/{name}/schema")
+async def put_schema(name: str, request: Request, user=Depends(require_admin)):
+    check_register(name)
+    body = await request.json()
+    fields = body.get("fields")
+    if not isinstance(fields, list) or not fields:
+        raise HTTPException(400, "fields must be a non-empty list")
+    seen = set()
+    for f in fields:
+        if not f.get("name") or not f.get("type"):
+            raise HTTPException(400, "each field needs a name and type")
+        if f["name"] in seen:
+            raise HTTPException(400, f"duplicate field key: {f['name']}")
+        seen.add(f["name"])
+    await db.register_schemas.update_one({"name": name}, {"$set": {
+        "name": name, "fields": fields,
+        "updated_at": now_utc().isoformat(), "updated_by": user.get("email"),
+    }}, upsert=True)
+    await audit(user, "schema-update", name, name)
+    return {"ok": True}
+
+@api.delete("/registers/{name}/schema")
+async def reset_schema(name: str, user=Depends(require_admin)):
+    check_register(name)
+    await db.register_schemas.delete_one({"name": name})
+    await audit(user, "schema-reset", name, name)
+    return {"ok": True}
+
 @api.put("/registers/{name}/{rid}")
 async def update_register(name: str, rid: str, request: Request, user=Depends(require_admin)):
     check_register(name)
@@ -279,16 +328,14 @@ async def delete_register(name: str, rid: str, user=Depends(require_admin)):
 async def export_register(name: str, user=Depends(require_admin)):
     check_register(name)
     rows = await db[f"reg_{name}"].find({}, {"_id": 0}).to_list(10000)
-    keys = []
-    for r in rows:
-        for k in r.keys():
-            if k not in keys:
-                keys.append(k)
+    if name in RUNNING_BALANCE:
+        rows = with_running_balance(rows)
+    keys, headers = await resolve_columns(name, rows)
     buf = io.StringIO()
-    w = csv.DictWriter(buf, fieldnames=keys or ["id"])
-    w.writeheader()
+    w = csv.writer(buf)
+    w.writerow(headers or ["id"])
     for r in rows:
-        w.writerow(r)
+        w.writerow([r.get(k, "") for k in keys])
     buf.seek(0)
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={name}.csv"})
@@ -300,7 +347,9 @@ async def export_xlsx(name: str, user=Depends(require_admin)):
     rows = await db[f"reg_{name}"].find({}, {"_id": 0}).to_list(10000)
     if name in RUNNING_BALANCE:
         rows = with_running_balance(rows)
-    df = pd.DataFrame(rows) if rows else pd.DataFrame()
+    keys, headers = await resolve_columns(name, rows)
+    data = [[r.get(k, "") for k in keys] for r in rows]
+    df = pd.DataFrame(data, columns=headers) if keys else pd.DataFrame()
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name=name[:31] or "sheet")
