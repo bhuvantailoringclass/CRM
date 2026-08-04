@@ -47,6 +47,23 @@ def clean(doc):
     doc.pop("_id", None)
     return doc
 
+def to_num(v):
+    try:
+        return float(str(v).replace(",", "") or 0)
+    except Exception:
+        return 0.0
+
+RUNNING_BALANCE = ("cashbook", "bankbook")
+
+def with_running_balance(rows):
+    # Sort oldest-first by date then insertion time, accumulate receipt - payment.
+    rows = sorted(rows, key=lambda r: (str(r.get("date", "")), str(r.get("created_at", ""))))
+    bal = 0.0
+    for r in rows:
+        bal += to_num(r.get("receipt")) - to_num(r.get("payment"))
+        r["balance"] = round(bal, 2)
+    return rows
+
 # ---------------- AUTH ----------------
 async def get_current_user(request: Request):
     token = request.cookies.get("session_token")
@@ -208,7 +225,11 @@ async def list_register(name: str, q: Optional[str] = None, user=Depends(get_cur
             return await db.reg_admission.find(
                 {"course": {"$in": courses}}, {"_id": 0}).to_list(2000)
         raise HTTPException(403, "Admin access required")
-    rows = await db[f"reg_{name}"].find({}, {"_id": 0}).sort("created_at", -1).to_list(5000)
+    rows = await db[f"reg_{name}"].find({}, {"_id": 0}).to_list(5000)
+    if name in RUNNING_BALANCE:
+        rows = with_running_balance(rows)
+    else:
+        rows.sort(key=lambda r: str(r.get("created_at", "")), reverse=True)
     if q:
         ql = q.lower()
         rows = [r for r in rows if any(ql in str(v).lower() for v in r.values())]
@@ -277,6 +298,8 @@ async def export_xlsx(name: str, user=Depends(require_admin)):
     check_register(name)
     import pandas as pd
     rows = await db[f"reg_{name}"].find({}, {"_id": 0}).to_list(10000)
+    if name in RUNNING_BALANCE:
+        rows = with_running_balance(rows)
     df = pd.DataFrame(rows) if rows else pd.DataFrame()
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:

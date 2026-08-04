@@ -197,7 +197,7 @@ export const REGISTERS = {
       t("particulars", "Particulars"),
       n("receipt", "Receipt"),
       n("payment", "Payment"),
-      n("balance", "Balance"),
+      n("balance", "Balance", { auto: true, hint: "Auto-calculated" }),
     ],
   },
   bankbook: {
@@ -208,7 +208,7 @@ export const REGISTERS = {
       t("particulars", "Particulars"),
       n("receipt", "Receipt"),
       n("payment", "Payment"),
-      n("balance", "Balance"),
+      n("balance", "Balance", { auto: true, hint: "Auto-calculated" }),
     ],
   },
   income: {
