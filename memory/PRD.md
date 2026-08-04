@@ -1,36 +1,31 @@
 # BIFD Institute Management ERP — PRD
 
 ## Original Problem
-Full-stack internal ERP for Bhuvan Institute of Fashion Design (BIFD) replacing 19 physical registers with one connected system. Two roles (Admin, Teacher) with strict RBAC.
+Full-stack internal ERP for Bhuvan Institute of Fashion Design (BIFD) replacing physical registers with one connected system. Two roles (Admin, Teacher) with strict RBAC.
 
 ## Architecture
 - Stack: React (CRA) + FastAPI + MongoDB (motor).
-- Auth: Emergent-managed Google login (session_token httpOnly cookie + Bearer fallback). Roles: admin (ADMIN_EMAILS), teacher (in `teachers` collection, active), denied (everyone else).
-- Registers stored in `reg_<name>` collections; generic CRUD + CSV export via `/api/registers/{name}`. Audit trail in `audit_log`.
-- Daily DB backup via `.emergent/crons.yml` → `/api/cron/backup` (mongodump to /app/backups, secured by WEBHOOK_CRON_SECRET).
+- Auth: Emergent-managed Google login (session_token httpOnly cookie + Bearer fallback). Roles: admin (ADMIN_EMAILS), teacher (in `teachers` collection, active), denied.
+- Registers stored in `reg_<name>` collections; generic schema-driven CRUD + CSV/Excel export via `/api/registers/{name}`. Audit trail in `audit_log`.
+- Dynamic field schemas in `register_schemas` (absent = use frontend defaults). Daily DB backup via `.emergent/crons.yml` → `/api/cron/backup`.
 
 ## Personas
-- Admin (office/owner): manages all 19 registers, dashboard, teacher accounts.
-- Teacher: marks attendance for assigned courses only; read-only history; no other data.
+- Admin/Super Admin (owner/office): manages all registers, their field structures, dashboard, teacher accounts.
+- Teacher: marks attendance for assigned courses only; read-only history.
 
-## Implemented (2026-06)
+## Implemented
 - Google auth + role-based redirect + role-gated grouped sidebar.
-- Admin dashboard: active students, today's attendance %, fees collected vs due, overdue fees, faculty, assets, fire-safety due, recent certs/visitors, global search.
-- All 19 registers (Admission master + Attendance, Fee, Course, Certificate, Placement, Faculty, Faculty Attendance, Scholarship, Cash Book, Bank Book, Purchase, Income, Expense, Salary, Asset, Correspondence, Visitor, Fire Safety) with searchable/sortable/date-filterable tables, slide-in add/edit forms, delete, CSV export.
-- Admission auto-generates student_id (BIFD-XXXX); student/course reference pickers link records.
-- Teacher flow: course/date selection, roster, Present/Absent/Late + remark, submit (locked after submit), read-only history. Mobile-responsive.
-- Admin teacher-account management (add/edit/deactivate, assign courses).
-- Audit trail on all writes; automatic daily backup cron.
-- Verified: 23/23 backend tests + full admin & teacher Playwright walkthrough passed.
+- Admin dashboard (active students, attendance %, fees collected vs due, overdue, faculty, assets, fire-safety, recent certs/visitors) + global search.
+- 27 registers across Student / Staff / Accounts / Administrative groups, each with searchable/sortable/date-filterable table, Sl.No auto serial, add/edit/delete, Excel + CSV + PDF + Print, Audit Log viewer.
+- Auto IDs: student BIFD-, staff STF-, asset AST-, certificate CERT-, receipt RCP-, complaint CMP-.
+- Cash & Bank registers auto-compute running Balance (backend, order-independent).
+- Teacher attendance flow (locked after submit) + read-only history; mobile responsive.
+- **Dynamic Field Management (Register Settings)**: per-register ⚙ page to rename (label only; stable key = data-safe), add unlimited custom fields (14 types: text/longtext/number/currency/date/time/email/phone/dropdown/checkbox/yesno/image/file/signature + student/course links), drag-reorder, hide/show, required toggle, lock (prevents delete; auto-IDs locked), archive (soft-delete with restore) + permanent remove, restore defaults. Changes reflect across forms/table/search/filters/exports/PDF/print. Only admin can edit structure. Verified 31/31 backend + full frontend E2E.
 
-## Update (2026-06) — Register expansion
-- Regrouped into Student / Staff / Accounts / Administrative Registers; now 27 registers (added Course Wise, Receipt, Maintenance, Complaint, Stock, Library, Lost & Found, Vehicle; kept Course catalogue for dropdowns/teacher assignment).
-- Every register uses the exact requested columns with a Sl. No. auto serial column.
-- Auto IDs: student_id BIFD, staff_id STF, asset_id AST, certificate_no CERT, receipt_no RCP, complaint_no CMP.
-- Per-register toolbar: Audit Log viewer, Excel (.xlsx) export, PDF + Print (print window), CSV endpoint, search, date-range filter, add/edit/delete. Selecting a student auto-fills name/course/batch.
-- Admin accounts: bhuvantailoringclass@gmail.com, admin@bifd.com.
+## Admin accounts
+- bhuvantailoringclass@gmail.com, admin@bifd.com
 
 ## Backlog / Not yet built
-- P1: Photo/document uploads (student photos, faculty docs) — deferred per user.
-- P1: PDF export / printable certificate template (CSV done; PDF pending).
-- P2: Audit-log viewer UI; running-balance auto-calc for Cash/Bank books; enrolled-count auto on courses; faculty-absentee & fire-safety notification surfacing beyond dashboard.
+- P1: Real object-storage uploads (image/file/signature currently stored as base64 data URLs, 2MB cap).
+- P1: PDF true-file export / branded certificate template (currently print-window based).
+- P2: Auto-fill for renamed link keys; per-field permission granularity; audit-log for schema at field level; running-balance also for Stock.

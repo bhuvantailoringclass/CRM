@@ -73,9 +73,10 @@ async def resolve_columns(name, rows):
         headers = [f.get("label", f["name"]) for f in vis]
         return keys, headers
     keys = []
+    meta = {"id", "created_at", "created_by", "updated_at", "updated_by"}
     for r in rows:
         for k in r.keys():
-            if k not in keys:
+            if k not in keys and k not in meta:
                 keys.append(k)
     return keys, keys
 
