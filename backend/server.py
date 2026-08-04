@@ -23,11 +23,22 @@ api = APIRouter(prefix="/api")
 
 # ---- Registers that admin can manage generically ----
 REGISTERS = [
-    "admission", "attendance", "fee", "course", "certificate", "placement",
-    "faculty", "faculty_attendance", "scholarship", "cashbook", "bankbook",
-    "purchase", "income", "expense", "salary", "asset", "correspondence",
-    "visitor", "firesafety",
+    "admission", "fee", "course", "coursewise", "attendance", "certificate",
+    "placement", "scholarship", "staff", "faculty_attendance", "salary",
+    "cashbook", "bankbook", "income", "expense", "purchase", "receipt",
+    "correspondence", "visitor", "asset", "maintenance", "firesafety",
+    "complaint", "stock", "library", "lostfound", "vehicle",
 ]
+
+# Registers whose ID field is auto-generated: register -> (field, prefix)
+AUTO_ID = {
+    "admission": ("student_id", "BIFD"),
+    "staff": ("staff_id", "STF"),
+    "asset": ("asset_id", "AST"),
+    "certificate": ("certificate_no", "CERT"),
+    "receipt": ("receipt_no", "RCP"),
+    "complaint": ("complaint_no", "CMP"),
+}
 
 def now_utc():
     return datetime.now(timezone.utc)
@@ -215,8 +226,10 @@ async def create_register(name: str, request: Request, user=Depends(require_admi
     data["id"] = str(uuid.uuid4())
     data["created_at"] = now_utc().isoformat()
     data["created_by"] = user.get("email")
-    if name == "admission" and not data.get("student_id"):
-        data["student_id"] = await next_student_id()
+    aid = AUTO_ID.get(name)
+    if aid and not data.get(aid[0]):
+        cnt = await db[f"reg_{name}"].count_documents({})
+        data[aid[0]] = f"{aid[1]}-{cnt + 1:04d}"
     await db[f"reg_{name}"].insert_one(dict(data))
     await audit(user, "create", name, data["id"])
     return clean(data)
@@ -258,6 +271,26 @@ async def export_register(name: str, user=Depends(require_admin)):
     buf.seek(0)
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename={name}.csv"})
+
+@api.get("/registers/{name}/export.xlsx")
+async def export_xlsx(name: str, user=Depends(require_admin)):
+    check_register(name)
+    import pandas as pd
+    rows = await db[f"reg_{name}"].find({}, {"_id": 0}).to_list(10000)
+    df = pd.DataFrame(rows) if rows else pd.DataFrame()
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name=name[:31] or "sheet")
+    buf.seek(0)
+    return StreamingResponse(buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={name}.xlsx"})
+
+@api.get("/registers/{name}/audit")
+async def register_audit(name: str, user=Depends(require_admin)):
+    check_register(name)
+    rows = await db.audit_log.find({"register": name}, {"_id": 0}).sort("at", -1).to_list(200)
+    return rows
 
 # ---------------- TEACHER ATTENDANCE ----------------
 @api.get("/teacher/roster")
@@ -323,10 +356,10 @@ async def dashboard(user=Depends(require_admin)):
         except Exception:
             return 0.0
     collected_month = sum(num(f.get("amount_paid")) for f in fees if str(f.get("payment_date", "")).startswith(month))
-    total_due = sum(num(f.get("balance_due")) for f in fees)
-    overdue = [f for f in fees if num(f.get("balance_due")) > 0 and f.get("due_date") and f.get("due_date") < today]
+    total_due = sum(num(f.get("balance")) for f in fees)
+    overdue = [f for f in fees if num(f.get("balance")) > 0]
 
-    faculty = await db.reg_faculty.count_documents({})
+    faculty = await db.reg_staff.count_documents({})
     visitors = await db.reg_visitor.find({}, {"_id": 0}).sort("created_at", -1).to_list(5)
     fire = await db.reg_firesafety.find({}, {"_id": 0}).to_list(1000)
     fire_due = [f for f in fire if f.get("next_due_date") and f.get("next_due_date") <= (now_utc() + timedelta(days=30)).strftime("%Y-%m-%d")]

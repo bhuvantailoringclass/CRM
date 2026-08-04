@@ -23,8 +23,12 @@ Full-stack internal ERP for Bhuvan Institute of Fashion Design (BIFD) replacing 
 - Audit trail on all writes; automatic daily backup cron.
 - Verified: 23/23 backend tests + full admin & teacher Playwright walkthrough passed.
 
-## Admin accounts
-- bhuvantailoringclass@gmail.com, admin@bifd.com (see /app/memory/test_credentials.md)
+## Update (2026-06) — Register expansion
+- Regrouped into Student / Staff / Accounts / Administrative Registers; now 27 registers (added Course Wise, Receipt, Maintenance, Complaint, Stock, Library, Lost & Found, Vehicle; kept Course catalogue for dropdowns/teacher assignment).
+- Every register uses the exact requested columns with a Sl. No. auto serial column.
+- Auto IDs: student_id BIFD, staff_id STF, asset_id AST, certificate_no CERT, receipt_no RCP, complaint_no CMP.
+- Per-register toolbar: Audit Log viewer, Excel (.xlsx) export, PDF + Print (print window), CSV endpoint, search, date-range filter, add/edit/delete. Selecting a student auto-fills name/course/batch.
+- Admin accounts: bhuvantailoringclass@gmail.com, admin@bifd.com.
 
 ## Backlog / Not yet built
 - P1: Photo/document uploads (student photos, faculty docs) — deferred per user.
