@@ -1,0 +1,9 @@
+crons:
+  - name: daily-db-backup
+    description: "Runs a daily mongodump backup of the BIFD ERP database at 2am IST"
+    cron: "0 2 * * *"
+    timezone: "Asia/Kolkata"
+    endpoint: "{{BASE_URL}}/api/cron/backup"
+    method: POST
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    enabled: true
