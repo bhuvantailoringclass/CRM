@@ -1,0 +1,90 @@
+{
+  "theme": "Swiss Editorial Brutalism (High-End Fashion ERP)",
+  "concept": "Vogue meets Excel. The design must reflect the aesthetics, precision, and elegance of a fashion institute while maintaining extremely high functionality and density for data entry across 19 modules.",
+  "typography": {
+    "strategy": "The Anti-Default Rule & High Contrast",
+    "headings": {
+      "family": "Cabinet Grotesk, Playfair Display, or Bodoni Moda",
+      "style": "High tension. Use tracking-tight, bold weight for structure.",
+      "usage": "Page titles, Dashboard metric headers, Login welcome text."
+    },
+    "body": {
+      "family": "IBM Plex Sans or Inter",
+      "style": "Highly legible, geometric, monospaced numbers.",
+      "usage": "Data tables, forms, sidebar navigation."
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-bold tracking-tight",
+      "h2": "text-2xl sm:text-3xl font-semibold tracking-tight",
+      "h3": "text-xl font-medium",
+      "body": "text-sm md:text-base leading-relaxed",
+      "labels": "text-xs uppercase tracking-[0.2em] text-muted-foreground"
+    }
+  },
+  "colors": {
+    "archetype": "Swiss & High-Contrast (Archetype 4) mixed with Fashion Luxury",
+    "palette": {
+      "background": "#FAFAFA",
+      "surface": "#FFFFFF",
+      "foreground": "#111111",
+      "muted": "#F3F4F6",
+      "border": "#E5E5E5",
+      "primary": "#FF3300",
+      "primary_foreground": "#FFFFFF"
+    },
+    "instructions": "Set Tailwind border-radius to 0px. Use sharp corners universally. Do not use generic full-screen gradients. The primary color (#FF3300) should be used sparingly like a designer label for CTAs and critical alerts only."
+  },
+  "layouts": {
+    "strategy": "High Density Grid (Mode B) + Grid Borders",
+    "dashboard": "Use a rigid grid. Expose the skeleton with 1px border-collapse or visible cell borders. Dashboard cards must have sharp edges, 1px border, no shadow by default, adding a stark drop-shadow-[4px_4px_0_#111] on hover for tactile interaction.",
+    "sidebar": "Persistent sidebar. Group the 19 registers into logical collapsable folders (e.g., 'Academics', 'Finance', 'Administration') so it does not overwhelm the user.",
+    "tables": "Dense. Sticky first column (ID/Name). Text left, numbers right. Subtle zebra striping (even:bg-black/[0.02]). Row actions hidden under a minimalist '...' hover menu."
+  },
+  "component_guidelines": {
+    "buttons": "Sharp corners (rounded-none). Solid colors or 1px border outline. Interaction must be distinct (e.g., hover:bg-black hover:text-white).",
+    "inputs": "Flat surfaces. Bottom border only (flair) or stark 1px solid border. Use Shadcn customized for zero radius.",
+    "glassmorphism": "Not recommended for data-heavy ERPs. Use Solid Backgrounds for clarity.",
+    "modals": "Slide-in panels (sheets) from the right are preferred over center modals for data entry, allowing context of the table beneath."
+  },
+  "motion": {
+    "strategy": "Crisp and Snappy",
+    "transitions": "Avoid bouncy spring animations. Use fast, linear or ease-out transitions (150ms).",
+    "interactions": "Interactive elements must have a clear hover state. Add a flash of the primary color on active states."
+  },
+  "accessibility": {
+    "contrast": "Ensure APCA/WCAG AA compliance. Dark text on light backgrounds.",
+    "focus": "Use a stark 2px ring in primary color for focus-visible states.",
+    "testing": "All interactive and key informational elements MUST include a `data-testid` attribute (e.g., `data-testid=\"login-submit\"`)."
+  },
+  "media": {
+    "image_urls": {
+      "login_background": {
+        "url": "https://images.pexels.com/photos/7561201/pexels-photo-7561201.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Stunning minimalist fashion portrait of a model in white attire, set in a bright indoor location.",
+        "usage": "Use as a split-screen high-impact visual for the Admin/Teacher login page."
+      },
+      "abstract_texture": {
+        "url": "https://images.unsplash.com/photo-1532456745301-b2c645d8b80d?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzZ8MHwxfHNlYXJjaHw0fHxtaW5pbWFsaXN0JTIwZ2VvbWV0cmljJTIwYXJjaGl0ZWN0dXJlJTIwdGV4dHVyZXxlbnwwfHx8fDE3ODU4NDE1MTB8MA&ixlib=rb-4.1.0&q=85",
+        "description": "White concrete building facade geometric pattern.",
+        "usage": "Can be used at low opacity (5-10%) inside the sidebar or dashboard empty states to break the sterile digital feel."
+      }
+    }
+  },
+  "instructions_to_main_agent": [
+    "Create `.js` files, not `.tsx`. Ensure proper JSDoc or PropTypes if type-checking is needed, but keep it standard React JS.",
+    "Override Shadcn CSS variables in index.css to remove ALL border radius (--radius: 0).",
+    "Implement a dynamic, collapsable Sidebar. 19 modules are too many for a flat list. Group them logically (e.g. Finance: Fee, Income, Expense, Salary, Cash Book).",
+    "Use 'lucide-react' for crisp, minimalist iconography.",
+    "For the Teacher role, create a highly optimized, mobile-first Attendance Entry screen (date picker, large hit targets for Present/Absent toggles).",
+    "Use Shadcn's Data Table (TanStack Table) for all 19 registers. Implement global search, column visibility, and pagination.",
+    "Never use fully transparent backgrounds on overlays/dropdowns.",
+    "Ensure `data-testid` is added to all buttons, links, form fields, and table rows."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. Make this UI distinctive. It is an ERP, but it is for a FASHION INSTITUTE. It should look like a high-end editorial magazine layout applied to a data grid.",
+    "Do not center-align the app container. Respect the natural reading flow (left-aligned).",
+    "Do not use generic AI emojis (🤖🧠💡).",
+    "Apply 2x to 3x more padding than standard templates inside dashboard cards to let the data breathe.",
+    "Always use sonner for toast notifications."
+  ]
+}
