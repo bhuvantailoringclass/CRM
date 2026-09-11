@@ -1,0 +1,33 @@
+{
+  "summary": "Full backend + frontend E2E of Register Management (custom register feature). Backend: 25/25 pytest tests passed in /app/backend/tests/test_register_mgmt.py — AuthZ (401 no token, 403 for teacher on GET/POST/PUT), list returns exactly 27 builtins + customs, POST creates custom register with slugified key and seeds starter schema (Date/Particulars/Amount/Remarks), duplicate label (case-insensitive) -> 400, duplicate key -> 400, duplicate builtin key ('admission') -> 400, empty label -> 400, PUT rename label, PUT active toggle false/true, generic /registers/<key> POST/GET/PUT/DELETE work for custom register, CSV + XLSX export work, /audit logs the create action. Regression: /api/registers/admission, /api/dashboard, unknown register still 404, teacher roster all pass. Frontend: sidebar link nav-register-management visible; /settings/registers loads with 27 built-in rows + Add panel; create custom register works; duplicate name shows toast 'A register with this name already exists'; rename works and reflects in list; toggle-active hides register from sidebar and reactivate restores it; new custom register appears under 'Custom Registers' group with data-testid=nav-<key>; RegisterView opens with full toolbar (Register Settings, Audit Log, Excel, PDF, Print, Add New Entry) and starter columns; Add Entry drawer submits successfully ('Entry added' toast, table shows 1 record); Register Settings page loads for custom register; /r/admission and dashboard regression pass. All test artefacts (register_defs, reg_<key> collections, schemas, TEST_ rows) fully cleaned up.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Custom register Add Entry drawer", "issues": ["Date field uses browser-default native <input type='date'> picker instead of a shadcn Calendar component (also used across built-in registers). Consistent but flagged per review checklist."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_register_mgmt.py",
+    "/app/test_reports/pytest/register_mgmt_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "PUT /register-mgmt/{key} on a built-in key (existing==None path) inserts a NEW row with builtin=True but custom=False. list_register_mgmt() only filters customs on d.get('custom'), so this is fine for list display, but check_register() accepts any key present in register_defs regardless of custom flag — this means creating a def for an unknown key via PUT would silently make it a valid register (dead-code today because PUT requires 404 on unknown, which raises before insert). No exploitable issue but the branch that inserts on non-existing key + non-builtin is unreachable; consider removing for clarity.",
+    "GET /register-mgmt returns builtins with label=None unless the admin has explicitly renamed one via PUT — frontend Layout & RegisterManagement fall back to REGISTERS[key].label, which works, but the API contract would be cleaner if the backend returned the default label from a shared registry.",
+    "Duplicate detection is by label (case-insensitive) across custom registers only — a custom register may be created with a label that matches a BUILT-IN register's default label (e.g. 'Admission Register') because backend only checks db.register_defs. Frontend RegisterManagement.add() does check against merged list before calling API, so UX-safe, but a curl bypass would allow it. Consider also checking against REGISTERS labels server-side.",
+    "server.py has grown to 579 lines — still one module for auth, registers, register-mgmt, teacher, dashboard, cron. Reiterating prior recommendation to split into routers.",
+    "No DELETE endpoint for /register-mgmt/{key} — admins can only deactivate, not remove a custom register (defs + reg_<key> collection + register_schemas need manual DB cleanup). Consider adding an admin-only DELETE that drops all three for full lifecycle."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_register_mgmt.py (new)"
+  ],
+  "success_rate": {"backend": "100% (25/25)", "frontend": "100% (all flows)"},
+  "test_credentials": "Admin: Bearer testsess_admin (or cookie session_token=testsess_admin). Teacher: Bearer testsess_teacher.",
+  "seed_data_creation": "None persisted. Test created a custom register 'TEST Library Fine Register <ts>' + 1 row + starter schema, then fully cleaned: register_defs=0, no reg_test_* collections, no TEST_ rows in visitor/admission. Verified via mongo.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest command: pytest /app/backend/tests/ -v --tb=short -o addopts='' — the repo pytest.ini adds -n auto --dist loadscope; override with -o addopts='' for stable output. Session tokens testsess_admin / testsess_teacher exist in db.user_sessions and are valid ~7d. Frontend: set cookie session_token=testsess_admin (Secure, SameSite=None) before navigating. Add-Entry drawer has no data-testid on its inputs; enumerate via '.fixed.inset-0.z-50 input' selector. Custom register list_register_mgmt sends 27 built-ins today.",
+  "rca of the issue": "N/A — no bugs found. All specified scenarios (create/duplicate/rename/toggle, generic CRUD, exports, audit, sidebar visibility, regression) pass with the current implementation."
+}

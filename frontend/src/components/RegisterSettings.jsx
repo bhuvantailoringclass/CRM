@@ -71,17 +71,19 @@ function FieldRow({ field, onChange, onArchive }) {
 export default function RegisterSettings() {
   const { key } = useParams();
   const navigate = useNavigate();
-  const cfg = REGISTERS[key];
+  const staticCfg = REGISTERS[key];
+  const [cfg, setCfg] = useState(staticCfg || { label: key, group: "Custom Registers", fields: [] });
   const [active, setActive] = useState([]);
   const [archived, setArchived] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
-    let fields = cfg.fields;
+    let fields = staticCfg?.fields || [];
     try {
       const res = await api.get(`/registers/${key}/schema`);
       if (res.data.fields) fields = res.data.fields;
+      if (!staticCfg && res.data.label) setCfg({ label: res.data.label, group: res.data.group || "Custom Registers", fields: [] });
     } catch {}
     setActive(fields.filter((f) => !f.archived));
     setArchived(fields.filter((f) => f.archived));
@@ -142,9 +144,11 @@ export default function RegisterSettings() {
           <p className="text-sm text-muted-foreground mt-1">Rename, reorder, add, hide, lock or archive fields. Changes apply everywhere — forms, table, search, exports & print.</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={resetDefaults} data-testid="reset-defaults-btn" className="h-10 px-3 text-sm border border-input flex items-center gap-2 hover:bg-black hover:text-white transition-colors">
-            <Icons.RotateCcw className="w-4 h-4" /> Restore Defaults
-          </button>
+          {staticCfg && (
+            <button onClick={resetDefaults} data-testid="reset-defaults-btn" className="h-10 px-3 text-sm border border-input flex items-center gap-2 hover:bg-black hover:text-white transition-colors">
+              <Icons.RotateCcw className="w-4 h-4" /> Restore Defaults
+            </button>
+          )}
           <button onClick={save} data-testid="save-schema-btn" className="h-10 px-4 text-sm bg-primary text-primary-foreground flex items-center gap-2 hover:bg-black transition-colors">
             <Icons.Save className="w-4 h-4" /> Save Changes
           </button>

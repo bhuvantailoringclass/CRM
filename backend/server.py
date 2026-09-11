@@ -225,13 +225,16 @@ async def delete_teacher(tid: str, user=Depends(require_admin)):
     return {"ok": True}
 
 # ---------------- GENERIC REGISTERS (admin) ----------------
-def check_register(name):
-    if name not in REGISTERS:
-        raise HTTPException(404, "Unknown register")
+async def check_register(name):
+    if name in REGISTERS:
+        return
+    if await db.register_defs.find_one({"key": name}):
+        return
+    raise HTTPException(404, "Unknown register")
 
 @api.get("/registers/{name}")
 async def list_register(name: str, q: Optional[str] = None, user=Depends(get_current_user)):
-    check_register(name)
+    await check_register(name)
     # teachers may read admission roster (for options) but nothing else
     if user.get("role") != "admin":
         if name == "course":
@@ -257,7 +260,7 @@ async def next_student_id():
 
 @api.post("/registers/{name}")
 async def create_register(name: str, request: Request, user=Depends(require_admin)):
-    check_register(name)
+    await check_register(name)
     data = await request.json()
     data = {k: v for k, v in data.items() if k not in ("_id", "id", "created_at")}
     data["id"] = str(uuid.uuid4())
@@ -273,13 +276,17 @@ async def create_register(name: str, request: Request, user=Depends(require_admi
 
 @api.get("/registers/{name}/schema")
 async def get_schema(name: str, user=Depends(require_admin)):
-    check_register(name)
+    await check_register(name)
     doc = await db.register_schemas.find_one({"name": name}, {"_id": 0})
-    return {"name": name, "fields": doc["fields"] if doc else None}
+    d = await db.register_defs.find_one({"key": name}, {"_id": 0})
+    return {"name": name,
+            "fields": doc["fields"] if doc else None,
+            "label": (d or {}).get("label"), "group": (d or {}).get("group"),
+            "custom": bool(d and d.get("custom"))}
 
 @api.put("/registers/{name}/schema")
 async def put_schema(name: str, request: Request, user=Depends(require_admin)):
-    check_register(name)
+    await check_register(name)
     body = await request.json()
     fields = body.get("fields")
     if not isinstance(fields, list) or not fields:
@@ -300,14 +307,14 @@ async def put_schema(name: str, request: Request, user=Depends(require_admin)):
 
 @api.delete("/registers/{name}/schema")
 async def reset_schema(name: str, user=Depends(require_admin)):
-    check_register(name)
+    await check_register(name)
     await db.register_schemas.delete_one({"name": name})
     await audit(user, "schema-reset", name, name)
     return {"ok": True}
 
 @api.put("/registers/{name}/{rid}")
 async def update_register(name: str, rid: str, request: Request, user=Depends(require_admin)):
-    check_register(name)
+    await check_register(name)
     data = await request.json()
     data = {k: v for k, v in data.items() if k not in ("_id", "id", "created_at", "created_by")}
     data["updated_at"] = now_utc().isoformat()
@@ -320,14 +327,14 @@ async def update_register(name: str, rid: str, request: Request, user=Depends(re
 
 @api.delete("/registers/{name}/{rid}")
 async def delete_register(name: str, rid: str, user=Depends(require_admin)):
-    check_register(name)
+    await check_register(name)
     await db[f"reg_{name}"].delete_one({"id": rid})
     await audit(user, "delete", name, rid)
     return {"ok": True}
 
 @api.get("/registers/{name}/export")
 async def export_register(name: str, user=Depends(require_admin)):
-    check_register(name)
+    await check_register(name)
     rows = await db[f"reg_{name}"].find({}, {"_id": 0}).to_list(10000)
     if name in RUNNING_BALANCE:
         rows = with_running_balance(rows)
@@ -343,7 +350,7 @@ async def export_register(name: str, user=Depends(require_admin)):
 
 @api.get("/registers/{name}/export.xlsx")
 async def export_xlsx(name: str, user=Depends(require_admin)):
-    check_register(name)
+    await check_register(name)
     import pandas as pd
     rows = await db[f"reg_{name}"].find({}, {"_id": 0}).to_list(10000)
     if name in RUNNING_BALANCE:
@@ -361,9 +368,81 @@ async def export_xlsx(name: str, user=Depends(require_admin)):
 
 @api.get("/registers/{name}/audit")
 async def register_audit(name: str, user=Depends(require_admin)):
-    check_register(name)
+    await check_register(name)
     rows = await db.audit_log.find({"register": name}, {"_id": 0}).sort("at", -1).to_list(200)
     return rows
+
+# ---------------- REGISTER MANAGEMENT ----------------
+def slugify(text):
+    import re
+    s = re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+    return s or "register"
+
+@api.get("/register-mgmt")
+async def list_register_mgmt(user=Depends(require_admin)):
+    defs = await db.register_defs.find({}, {"_id": 0}).to_list(500)
+    by_key = {d["key"]: d for d in defs}
+    builtins = [{"key": k, "builtin": True,
+                 "label": by_key.get(k, {}).get("label"),
+                 "active": by_key.get(k, {}).get("active", True)}
+                for k in REGISTERS]
+    customs = [d for d in defs if d.get("custom")]
+    return {"builtins": builtins, "customs": customs}
+
+@api.post("/register-mgmt")
+async def create_register_def(request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    label = (body.get("label") or "").strip()
+    if not label:
+        raise HTTPException(400, "Register name is required")
+    key = slugify(body.get("key") or label)
+    if key in REGISTERS or await db.register_defs.find_one({"key": key}):
+        raise HTTPException(400, f"Register ID '{key}' already exists")
+    if await db.register_defs.find_one({"label": {"$regex": f"^{label}$", "$options": "i"}}):
+        raise HTTPException(400, "A register with this name already exists")
+    doc = {"key": key, "label": label, "group": "Custom Registers",
+           "icon": "Layers", "active": True, "custom": True,
+           "created_at": now_utc().isoformat(), "created_by": user.get("email")}
+    await db.register_defs.insert_one(dict(doc))
+    starter = [
+        {"name": "date", "label": "Date", "type": "date", "required": True},
+        {"name": "title", "label": "Particulars", "type": "text"},
+        {"name": "amount", "label": "Amount", "type": "number"},
+        {"name": "remarks", "label": "Remarks", "type": "longtext"},
+    ]
+    await db.register_schemas.update_one({"name": key}, {"$set": {
+        "name": key, "fields": starter, "updated_at": now_utc().isoformat()}}, upsert=True)
+    await audit(user, "register-create", key, key)
+    return clean(doc)
+
+@api.put("/register-mgmt/{key}")
+async def update_register_def(key: str, request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    existing = await db.register_defs.find_one({"key": key}, {"_id": 0})
+    if not existing and key not in REGISTERS:
+        raise HTTPException(404, "Not found")
+    label = (body.get("label") or "").strip() or None
+    active = body.get("active")
+    if label:
+        dup = await db.register_defs.find_one(
+            {"key": {"$ne": key}, "label": {"$regex": f"^{label}$", "$options": "i"}})
+        if dup:
+            raise HTTPException(400, "A register with this name already exists")
+    if existing:
+        setd = {}
+        if label:
+            setd["label"] = label
+        if active is not None:
+            setd["active"] = bool(active)
+        if setd:
+            await db.register_defs.update_one({"key": key}, {"$set": setd})
+    else:
+        await db.register_defs.insert_one({
+            "key": key, "builtin": True, "custom": False,
+            "label": label, "active": bool(active) if active is not None else True,
+            "created_at": now_utc().isoformat(), "created_by": user.get("email")})
+    await audit(user, "register-update", key, key)
+    return {"ok": True}
 
 # ---------------- TEACHER ATTENDANCE ----------------
 @api.get("/teacher/roster")

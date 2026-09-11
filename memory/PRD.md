@@ -29,3 +29,8 @@ Full-stack internal ERP for Bhuvan Institute of Fashion Design (BIFD) replacing 
 - P1: Real object-storage uploads (image/file/signature currently stored as base64 data URLs, 2MB cap).
 - P1: PDF true-file export / branded certificate template (currently print-window based).
 - P2: Auto-fill for renamed link keys; per-field permission granularity; audit-log for schema at field level; running-balance also for Stock.
+
+## Update (2026-06) — Register Management (admin-only)
+- New admin page /settings/registers + backend /api/register-mgmt (GET/POST/PUT) with new `register_defs` collection.
+- Admin can view all registers, add new custom registers (auto-slug unique key; starter fields Date/Particulars/Amount/Remarks seeded into register_schemas), rename (label), activate/deactivate (deactivated hidden from sidebar, data preserved). Duplicate name/key rejected (400).
+- check_register() is now async and also accepts custom register keys; all generic CRUD/export/schema endpoints work for customs unchanged. Builtins and their data untouched.

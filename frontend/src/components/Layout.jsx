@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import * as Icons from "lucide-react";
 import { REGISTERS, GROUPS } from "../registers";
@@ -10,8 +10,8 @@ const Icon = ({ name, className }) => {
   return <C className={className} />;
 };
 
-function GroupBlock({ group, open, toggle }) {
-  const items = Object.entries(REGISTERS).filter(([, r]) => r.group === group);
+function GroupBlock({ group, open, toggle, exclude }) {
+  const items = Object.entries(REGISTERS).filter(([k, r]) => r.group === group && !(exclude && exclude.has(k)));
   return (
     <div className="mb-1">
       <button
@@ -46,6 +46,16 @@ function GroupBlock({ group, open, toggle }) {
 export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [customs, setCustoms] = useState([]);
+  const [exclude, setExclude] = useState(new Set());
+  useEffect(() => {
+    if (user?.role === "admin") {
+      api.get("/register-mgmt").then((r) => {
+        setCustoms((r.data.customs || []).filter((c) => c.active));
+        setExclude(new Set((r.data.builtins || []).filter((b) => !b.active).map((b) => b.key)));
+      }).catch(() => {});
+    }
+  }, [user]);
   const [openGroups, setOpenGroups] = useState(() =>
     Object.fromEntries(GROUPS.map((g) => [g, true]))
   );
@@ -93,14 +103,35 @@ export default function Layout() {
           </>
         )}
         {isAdmin && GROUPS.map((g) => (
-          <GroupBlock key={g} group={g} open={openGroups[g]}
+          <GroupBlock key={g} group={g} open={openGroups[g]} exclude={exclude}
             toggle={() => setOpenGroups((s) => ({ ...s, [g]: !s[g] }))} />
         ))}
+        {isAdmin && customs.length > 0 && (
+          <div className="mb-1">
+            <div className="px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Custom Registers</div>
+            {customs.map((c) => (
+              <NavLink key={c.key} to={`/r/${c.key}`} data-testid={`nav-${c.key}`}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 pl-6 pr-4 py-2 text-sm border-l-2 transition-colors duration-150 ${
+                    isActive ? "border-primary bg-primary/5 text-foreground font-medium"
+                             : "border-transparent text-muted-foreground hover:text-foreground hover:bg-black/[0.03]"
+                  }`
+                }>
+                <Icons.Layers className="w-4 h-4" />
+                {c.label}
+              </NavLink>
+            ))}
+          </div>
+        )}
         {isAdmin && (
           <div className="mt-2 border-t border-border pt-2">
             <NavLink to="/teachers" data-testid="nav-teachers"
               className={({ isActive }) => `flex items-center gap-3 px-4 py-2.5 text-sm border-l-2 ${isActive ? "border-primary bg-primary/5 font-medium" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
               <Icons.UserCog className="w-4 h-4" /> Teacher Accounts
+            </NavLink>
+            <NavLink to="/settings/registers" data-testid="nav-register-management"
+              className={({ isActive }) => `flex items-center gap-3 px-4 py-2.5 text-sm border-l-2 ${isActive ? "border-primary bg-primary/5 font-medium" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+              <Icons.Settings2 className="w-4 h-4" /> Register Management
             </NavLink>
           </div>
         )}

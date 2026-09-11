@@ -103,7 +103,8 @@ function Cell({ field, value }) {
 export default function RegisterView() {
   const { key } = useParams();
   const navigate = useNavigate();
-  const cfg = REGISTERS[key];
+  const staticCfg = REGISTERS[key];
+  const [cfg, setCfg] = useState(staticCfg || { label: key, group: "Custom Registers", fields: [] });
   const [schemaFields, setSchemaFields] = useState(null);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -129,12 +130,14 @@ export default function RegisterView() {
         api.get(`/registers/${key}/schema`),
       ]);
       setRows(r.data);
-      setSchemaFields(s.data.fields || cfg.fields);
+      setSchemaFields(s.data.fields || (REGISTERS[key]?.fields || []));
+      if (!REGISTERS[key] && s.data.label) setCfg((c) => ({ ...c, label: s.data.label, group: s.data.group || "Custom Registers" }));
     } catch { toast.error("Failed to load"); }
     setLoading(false);
   };
 
   useEffect(() => {
+    setCfg(REGISTERS[key] || { label: key, group: "Custom Registers", fields: [] });
     load();
     setQ(""); setPage(0); setFrom(""); setTo(""); setAudit(null);
     api.get("/registers/admission").then((r) => setStudents(r.data)).catch(() => {});
