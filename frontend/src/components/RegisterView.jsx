@@ -4,6 +4,7 @@ import * as Icons from "lucide-react";
 import { toast } from "sonner";
 import api from "../lib/api";
 import { REGISTERS } from "../registers";
+import { getCompany, COMPANY_DEFAULTS } from "../lib/company";
 
 const isDropdown = (t) => t === "select" || t === "dropdown";
 const isUpload = (t) => t === "image" || t === "file" || t === "signature";
@@ -117,6 +118,8 @@ export default function RegisterView() {
   const [courses, setCourses] = useState([]);
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
+  const [company, setCompany] = useState(COMPANY_DEFAULTS);
+  useEffect(() => { getCompany().then(setCompany); }, []);
 
   const fields = schemaFields || cfg.fields;
   const cols = fields.filter((f) => !f.hidden && !f.archived);
@@ -216,7 +219,7 @@ export default function RegisterView() {
       th,td{border:1px solid #ccc;padding:5px 7px;text-align:left}th{background:#f2f2f2;text-transform:uppercase;font-size:10px}
       tr:nth-child(even){background:#fafafa}</style></head><body>
       <h1>${cfg.label}</h1>
-      <div class="sub">Bhuvan Institute of Fashion Design · ${filtered.length} records · ${new Date().toLocaleString()}</div>
+      <div class="sub">${company.name} · ${filtered.length} records · ${new Date().toLocaleString()}</div>
       <table><thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead>
       <tbody>${body.map((row) => `<tr>${row.map((c) => `<td>${String(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></body></html>`);
     w.document.close();

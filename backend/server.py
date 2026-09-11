@@ -372,6 +372,35 @@ async def register_audit(name: str, user=Depends(require_admin)):
     rows = await db.audit_log.find({"register": name}, {"_id": 0}).sort("at", -1).to_list(200)
     return rows
 
+# ---------------- COMPANY SETTINGS (white-label) ----------------
+COMPANY_DEFAULTS = {
+    "name": "Bhuvan Institute of Fashion Design",
+    "short_name": "BIFD",
+    "logo": "",
+    "address": "",
+    "phone": "",
+    "email": "",
+    "website": "",
+}
+
+@api.get("/company-settings")
+async def get_company_settings():
+    doc = await db.company_settings.find_one({"key": "company"}, {"_id": 0})
+    if not doc:
+        return COMPANY_DEFAULTS
+    return {**COMPANY_DEFAULTS, **{k: v for k, v in doc.items() if k != "key"}}
+
+@api.put("/company-settings")
+async def put_company_settings(request: Request, user=Depends(require_admin)):
+    body = await request.json()
+    allowed = {k: body.get(k, "") for k in COMPANY_DEFAULTS.keys()}
+    await db.company_settings.update_one({"key": "company"}, {"$set": {
+        "key": "company", **allowed,
+        "updated_at": now_utc().isoformat(), "updated_by": user.get("email"),
+    }}, upsert=True)
+    await audit(user, "company-settings", "company", "company")
+    return {"ok": True}
+
 # ---------------- REGISTER MANAGEMENT ----------------
 def slugify(text):
     import re

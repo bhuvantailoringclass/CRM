@@ -10,6 +10,7 @@ import Dashboard from "@/pages/Dashboard";
 import RegisterView from "@/components/RegisterView";
 import RegisterSettings from "@/components/RegisterSettings";
 import RegisterManagement from "@/pages/RegisterManagement";
+import CompanySettings from "@/pages/CompanySettings";
 import TeacherAttendance, { TeacherHistory } from "@/pages/TeacherAttendance";
 import Teachers from "@/pages/Teachers";
 
@@ -49,6 +50,7 @@ function AppRouter() {
         <Route path="/dashboard" element={<Protected adminOnly><Dashboard /></Protected>} />
         <Route path="/teachers" element={<Protected adminOnly><Teachers /></Protected>} />
         <Route path="/settings/registers" element={<Protected adminOnly><RegisterManagement /></Protected>} />
+        <Route path="/settings/company" element={<Protected adminOnly><CompanySettings /></Protected>} />
         <Route path="/r/:key/settings" element={<Protected adminOnly><RegisterSettings /></Protected>} />
         <Route path="/r/:key" element={<Protected adminOnly><RegisterView /></Protected>} />
         <Route path="/attendance" element={<TeacherAttendance />} />

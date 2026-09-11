@@ -4,6 +4,7 @@ import * as Icons from "lucide-react";
 import { REGISTERS, GROUPS } from "../registers";
 import { useAuth } from "../context/AuthContext";
 import api from "../lib/api";
+import { getCompany, COMPANY_DEFAULTS } from "../lib/company";
 
 const Icon = ({ name, className }) => {
   const C = Icons[name] || Icons.Square;
@@ -48,6 +49,8 @@ export default function Layout() {
   const navigate = useNavigate();
   const [customs, setCustoms] = useState([]);
   const [exclude, setExclude] = useState(new Set());
+  const [company, setCompany] = useState(COMPANY_DEFAULTS);
+  useEffect(() => { getCompany().then(setCompany); }, []);
   useEffect(() => {
     if (user?.role === "admin") {
       api.get("/register-mgmt").then((r) => {
@@ -77,7 +80,8 @@ export default function Layout() {
   const SidebarInner = (
     <>
       <div className="px-5 py-6 border-b border-border">
-        <div className="font-display text-3xl font-black tracking-tight leading-none">BIFD</div>
+        {company.logo && <img src={company.logo} alt={company.name} className="h-9 mb-2 object-contain" />}
+        <div className="font-display text-3xl font-black tracking-tight leading-none">{company.short_name}</div>
         <div className="text-[9px] uppercase tracking-[0.25em] text-muted-foreground mt-1">Institute ERP</div>
       </div>
       <nav className="flex-1 overflow-y-auto py-3">
@@ -132,6 +136,10 @@ export default function Layout() {
             <NavLink to="/settings/registers" data-testid="nav-register-management"
               className={({ isActive }) => `flex items-center gap-3 px-4 py-2.5 text-sm border-l-2 ${isActive ? "border-primary bg-primary/5 font-medium" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
               <Icons.Settings2 className="w-4 h-4" /> Register Management
+            </NavLink>
+            <NavLink to="/settings/company" data-testid="nav-company-settings"
+              className={({ isActive }) => `flex items-center gap-3 px-4 py-2.5 text-sm border-l-2 ${isActive ? "border-primary bg-primary/5 font-medium" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+              <Icons.Building2 className="w-4 h-4" /> Company Settings
             </NavLink>
           </div>
         )}
@@ -198,7 +206,7 @@ export default function Layout() {
             </div>
           )}
           <div className="ml-auto text-xs uppercase tracking-[0.2em] text-muted-foreground hidden sm:block">
-            Bhuvan Institute of Fashion Design
+            {company.name}
           </div>
         </header>
         <main className="flex-1 p-4 sm:p-8">

@@ -1,0 +1,23 @@
+{
+  "summary": "Comprehensive backend + frontend testing of the white-label Company Settings feature. All 5 backend tests pass (public GET, PUT auth matrix, persistence, regression). All frontend flows pass: Login defaults, admin edit + save w/ toast, sidebar+header branding propagation, print/PDF branding, teacher redirect from /settings/company, and full defaults restore. Regression: /r/admission still shows 9 records, dashboard OK. Final state = BIFD defaults (verified via GET /api/company-settings).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_company_settings.py",
+    "/app/test_reports/pytest/company_settings_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Login.jsx still hardcodes the copy 'One connected system for all 19 institute registers.' — the number is outdated (27 built-in registers per REGISTERS list + custom). Not part of white-label but worth surfacing.",
+    "server.py PUT /company-settings does not validate email/website format or logo size (frontend enforces 2MB); a malicious admin could push a huge base64 logo. Low risk since admin-only, but consider a server-side size cap.",
+    "company.js cache is module-scoped; on hard navigation from login (no auth) to app it re-fetches, which is fine. clearCompanyCache() is called on save — good."
+  ],
+  "updated_files": ["/app/backend/tests/test_company_settings.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Bearer testsess_admin (admin@bifd.com), Bearer testsess_teacher (teacher@bifd.com)",
+  "seed_data_creation": "None. Temporarily set company to 'Test Fashion Academy'/'TFA' during test then restored to BIFD defaults.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Feature is stable. Final DB state: company_settings = BIFD defaults, logo empty. Admission collection: 9 rows untouched. testsess_admin and testsess_teacher sessions exist in user_sessions and are valid 7 days.",
+  "rca of the issue": "N/A — no bugs found."
+}

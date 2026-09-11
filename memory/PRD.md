@@ -25,6 +25,11 @@ Full-stack internal ERP for Bhuvan Institute of Fashion Design (BIFD) replacing 
 ## Admin accounts
 - bhuvantailoringclass@gmail.com, admin@bifd.com
 
+## Update (2026-06) — White-label Company Settings (admin-only)
+- New admin page /settings/company + backend GET/PUT /api/company-settings (public GET for login page; PUT admin-only) with `company_settings` collection (single doc, persists across restarts).
+- Configurable: company name, short name/acronym, logo (base64 upload, 2MB), address, phone, email, website. Defaults = Bhuvan Institute of Fashion Design / BIFD.
+- Connected to existing branding only: sidebar header (logo + short name), top header (name), login page (logo + short name + name), print/PDF views (name). No layout/design changes.
+
 ## Backlog / Not yet built
 - P1: Real object-storage uploads (image/file/signature currently stored as base64 data URLs, 2MB cap).
 - P1: PDF true-file export / branded certificate template (currently print-window based).
